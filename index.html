@@ -564,18 +564,26 @@ const firebaseConfig = {
 const _app = initializeApp(firebaseConfig);
 const _db = getFirestore(_app);
 const DOC_REF = doc(_db, "progress", "cyber_fin");
+let saveTimer = null;
 
-async function saveProgress() {
-  try { await setDoc(DOC_REF, { completed: [...completedWeeks] }); } catch(e) { console.error('Save failed:', e); }
-}
-
-async function loadProgress() {
+async function loadFromFirebase() {
   try {
     const snap = await getDoc(DOC_REF);
     if (snap.exists() && snap.data().completed) {
       completedWeeks = new Set(snap.data().completed);
     }
   } catch(e) { console.error('Load failed:', e); }
+}
+
+async function saveToFirebase() {
+  try {
+    await setDoc(DOC_REF, { completed: [...completedWeeks] });
+  } catch(e) { console.error('Save failed:', e); }
+}
+
+function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToFirebase, 800);
 }
 const MONTHS = [
   {
@@ -1351,13 +1359,17 @@ function markDone(idx) {
   } else {
     completedWeeks.add(idx);
   }
+  saveState();
   updateProgress();
   buildNav();
   renderMain();
-  saveProgress();
+}
 
 // Init
-loadProgress().then(() => {
+loadFromFirebase().then(() => {
+  // Expose functions used in inline HTML onclick attributes
+  window.navigate = navigate;
+  window.markDone = markDone;
   buildNav();
   updateProgress();
   renderOverview(document.getElementById('main-content'));
